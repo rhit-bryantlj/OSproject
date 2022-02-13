@@ -116,7 +116,17 @@ sys_pinfo(void) {
   if(argaddr(0, &addr) < 0)
     return -1;
 
-  struct psinfo procinfo;
-  &procinfo = addr;
+  struct proc *p;
+  struct psinfo *psi = addr;
+  int ps_proc_num = 0;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(ps_proc_num > 64) //MAX_PS_PROC
+      exit(1);
+    acquire(&p->lock);
+    
+    
+
+    release(&p->lock);
+  }
   return -1;
 }
