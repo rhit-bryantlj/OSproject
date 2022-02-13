@@ -133,6 +133,9 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_sleep\
+	$U/_pingpong\
+	$U/_trace\
+	$U/_ps\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

@@ -7,6 +7,8 @@
 #include "spinlock.h"
 #include "proc.h"
 
+extern struct proc proc[NPROC];
+
 uint64
 sys_exit(void)
 {
@@ -94,4 +96,27 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+//return the trace of the system
+uint64
+sys_trace(void)
+{
+  int n;
+  if(argint(0, &n) < 0)
+    return -1;
+  struct proc *p = myproc();
+  p->trace_mask = n;
+  return 0;  // not reached
+}
+
+uint64
+sys_pinfo(void) {
+  uint64 addr;
+  if(argaddr(0, &addr) < 0)
+    return -1;
+
+  struct psinfo procinfo;
+  &procinfo = addr;
+  return -1;
 }
