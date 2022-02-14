@@ -6,6 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
+struct list_head runq;
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -47,11 +49,13 @@ void
 procinit(void)
 {
   struct proc *p;
+  init_list_head(&runq);
   
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
+      init_list_head(&(p->list));
       p->kstack = KSTACK((int) (p - proc));
   }
 }
@@ -243,6 +247,8 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  //add proc to runq
+  list_add_tail(&runq, &(p->list));
 
   release(&p->lock);
 }
@@ -317,6 +323,8 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  //add proc to runq
+  list_add_tail(&runq, &(p->list));
   release(&np->lock);
 
   return pid;
@@ -443,28 +451,51 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  struct list_head *iterator = runq.next;
+  struct list_head *next_list;
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+    
+    while(iterator != &runq) {
+      p = (struct proc *)iterator;
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+      acquire(&p->lock);
+      if(p->state != RUNNABLE) {
+        panic("NONRUNNABLE PROC IN Qd IN SCHED");
       }
+
+      p->state = RUNNING;
+      c->proc = p;
+
+      next_list = iterator->next;
+      list_del(iterator);
+      iterator = next_list;
+
+      c->proc = 0;
+
       release(&p->lock);
     }
+
+    // for(p = proc; p < &proc[NPROC]; p++) {
+    //   acquire(&p->lock);
+    //   if(p->state == RUNNABLE) {
+    //     // Switch to chosen process.  It is the process's job
+    //     // to release its lock and then reacquire it
+    //     // before jumping back to us.
+    //     p->state = RUNNING;
+    //     c->proc = p;
+    //     swtch(&c->context, &p->context);
+
+    //     // Process is done running for now.
+    //     // It should have changed its p->state before coming back.
+    //     c->proc = 0;
+    //   }
+    //   release(&p->lock);
+    // }
   }
 }
 
@@ -502,6 +533,8 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  //add proc to runq
+  list_add_tail(&runq, &(p->list));
   sched();
   release(&p->lock);
 }
@@ -570,6 +603,8 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        //add proc to runq
+        list_add_tail(&runq, &(p->list));
       }
       release(&p->lock);
     }
@@ -591,6 +626,8 @@ kill(int pid)
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
+        //add proc to runq
+        list_add_tail(&runq, &(p->list));
       }
       release(&p->lock);
       return 0;
