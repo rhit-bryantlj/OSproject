@@ -433,23 +433,24 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-int //TODO
-countmapped(pagetable_t table) {
-  //Code from freewalk
-  // for(int i = 0; i < 512; i++){
-  //   pte_t pte = pagetable[i];
-  //   if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
-  //     // this PTE points to a lower-level page table.
-  //     uint64 child = PTE2PA(pte);
-  //     freewalk((pagetable_t)child);
-  //     pagetable[i] = 0;
-  //   } else if(pte & PTE_V){
-  //     panic("freewalk: leaf");
-  //   }
-  // }
-  // kfree((void*)pagetable);
-
-  for(int i = 0; i < 512; i++) {
+void //TODO
+helpcountmapped(pagetable_t table, int* count) {
+  for(int i = 0; i < 512; i++){
     pte_t pte = table[i];
-  }  
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      return helpcountmapped((pagetable_t)child, count);
+      table[i] = 0;
+    } else if(pte & PTE_V){
+      // panic("freewalk: leaf");
+      *count = *count + 1;
+    }
+  }
+}
+
+int countmapped(pagetable_t pagetable){
+  int count;
+  helpcountmapped(pagetable, &count);
+  return count;
 }

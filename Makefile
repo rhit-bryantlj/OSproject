@@ -136,6 +136,7 @@ UPROGS=\
 	$U/_pingpong\
 	$U/_trace\
 	$U/_ps\
+	$U/_pstest\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

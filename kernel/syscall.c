@@ -152,7 +152,7 @@ syscall(void)
     p->trapframe->a0 = syscalls[num]();
     int x = p->trace_mask >> num;
     if(x & 1) {
-      printf("%d: syscall %s -> TODO\n", p->pid, sysnames[num-1]);
+      printf("%d: syscall %s -> %d\n", p->pid, sysnames[num-1], p->trapframe->a0);
     }
   } else {
     printf("%d %s: unknown sys call %d\n",
