@@ -451,29 +451,33 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  struct list_head *iterator = runq.next;
-  struct list_head *next_list;
+  
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    struct list_head *iterator = runq.next;
     
     while(iterator != &runq) {
       p = (struct proc *)iterator;
 
       acquire(&p->lock);
+      printf("Proc name => %s\n", p->name);
+      printf("Proc state => %d\n", p->state);
+
       if(p->state != RUNNABLE) {
-        panic("NONRUNNABLE PROC IN Qd IN SCHED");
+        // panic("NONRUNNABLE PROC IN Qd IN SCHED");
       }
 
       p->state = RUNNING;
       c->proc = p;
 
-      next_list = iterator->next;
-      list_del(iterator);
-      iterator = next_list;
+      iterator = iterator->next;
+      list_del(&p->list);
+
+      swtch(&c->context, &p->context);
 
       c->proc = 0;
 
