@@ -7,6 +7,7 @@
 #include "defs.h"
 
 struct list_head runq;
+struct spinlock q_lock;
 
 struct cpu cpus[NCPU];
 
@@ -53,6 +54,7 @@ procinit(void)
   
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
+  initlock(&q_lock, "queue_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       init_list_head(&(p->list));
@@ -123,6 +125,10 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+
+  acquire(&q_lock);
+  list_del(&p->list);
+  release(&q_lock);
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -248,7 +254,9 @@ userinit(void)
 
   p->state = RUNNABLE;
   //add proc to runq
+  acquire(&q_lock);
   list_add_tail(&runq, &(p->list));
+  release(&q_lock);
 
   release(&p->lock);
 }
@@ -324,7 +332,10 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   //add proc to runq
+  acquire(&q_lock);
   list_add_tail(&runq, &(p->list));
+  release(&q_lock);
+
   release(&np->lock);
 
   return pid;
@@ -458,24 +469,35 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    acquire(&q_lock);
     struct list_head *iterator = runq.next;
+    p = (struct proc *)iterator;
+    list_del(&p->list);
+    release(&q_lock);
     
     while(iterator != &runq) {
-      p = (struct proc *)iterator;
 
       acquire(&p->lock);
-      printf("Proc name => %s\n", p->name);
-      printf("Proc state => %d\n", p->state);
+      // printf("Proc name => %s\n", p->name);
+      // printf("Proc state => %d\n", p->state);
 
       if(p->state != RUNNABLE) {
-        // panic("NONRUNNABLE PROC IN Qd IN SCHED");
+        printf("Not runnable detected\n");
+        printf("State => %d\n", p->state);
+        printf("name => %s\n", p->name);
+        panic("NONRUNNABLE PROC IN Qd IN SCHED");
       }
+
+      // printf("name => %s\n", p->name);
 
       p->state = RUNNING;
       c->proc = p;
+      //wrapper around the list and use that to call add
 
-      iterator = iterator->next;
-      list_del(&p->list);
+      acquire(&q_lock);
+      iterator = runq.next;
+      list_del(iterator);
+      release(&q_lock);
 
       swtch(&c->context, &p->context);
 
@@ -538,7 +560,9 @@ yield(void)
   acquire(&p->lock);
   p->state = RUNNABLE;
   //add proc to runq
+  acquire(&q_lock);
   list_add_tail(&runq, &(p->list));
+  release(&q_lock);
   sched();
   release(&p->lock);
 }
@@ -585,6 +609,10 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   p->state = SLEEPING;
 
+  acquire(&q_lock);
+  list_del(&p->list);
+  release(&q_lock);
+
   sched();
 
   // Tidy up.
@@ -608,7 +636,9 @@ wakeup(void *chan)
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
         //add proc to runq
+        acquire(&q_lock);
         list_add_tail(&runq, &(p->list));
+        release(&q_lock);
       }
       release(&p->lock);
     }
@@ -631,7 +661,9 @@ kill(int pid)
         // Wake process from sleep().
         p->state = RUNNABLE;
         //add proc to runq
+        acquire(&q_lock);
         list_add_tail(&runq, &(p->list));
+        release(&q_lock);
       }
       release(&p->lock);
       return 0;
@@ -698,4 +730,24 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+void
+print_list()
+{
+  struct list_head *iterator = &runq.next;
+	struct proc *p;
+	while(iterator != &runq) {
+		// 7.1 Extract the data from the list head
+		// This is why the list_head must be the first element in the structure,
+		// because we need to cast the smaller structure into the containing
+		// structure.
+		p = (struct proc *)iterator;
+		printf("%s -> ", p->name);
+
+		iterator = iterator->next;
+	}
+  printf("\n");
+
+
 }
