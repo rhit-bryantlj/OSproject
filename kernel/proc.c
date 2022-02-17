@@ -60,6 +60,7 @@ procinit(void)
       init_list_head(&(p->list));
       p->kstack = KSTACK((int) (p - proc));
   }
+  
 }
 
 // Must be called with interrupts disabled,
@@ -333,7 +334,7 @@ fork(void)
   np->state = RUNNABLE;
   //add proc to runq
   acquire(&q_lock);
-  list_add_tail(&runq, &(p->list));
+  list_add_tail(&runq, &(np->list));
   release(&q_lock);
 
   release(&np->lock);
@@ -470,12 +471,11 @@ scheduler(void)
     intr_on();
 
     acquire(&q_lock);
-    struct list_head *iterator = runq.next;
-    p = (struct proc *)iterator;
-    list_del(&p->list);
-    release(&q_lock);
-    
-    while(iterator != &runq) {
+    if(runq.next != &runq){
+      struct list_head *iterator = runq.next;
+      p = (struct proc *)iterator;
+      list_del(&p->list);
+      release(&q_lock);
 
       acquire(&p->lock);
       // printf("Proc name => %s\n", p->name);
@@ -488,23 +488,29 @@ scheduler(void)
         panic("NONRUNNABLE PROC IN Qd IN SCHED");
       }
 
-      // printf("name => %s\n", p->name);
-
       p->state = RUNNING;
       c->proc = p;
-      //wrapper around the list and use that to call add
-
-      acquire(&q_lock);
-      iterator = runq.next;
-      list_del(iterator);
-      release(&q_lock);
 
       swtch(&c->context, &p->context);
 
       c->proc = 0;
 
       release(&p->lock);
+    }else{
+      release(&q_lock);
     }
+
+    // while(iterator != &runq) {
+    //   // p = (struct proc *)iterator;
+      
+    //   //wrapper around the list and use that to call add
+
+    //   acquire(&q_lock);
+    //   iterator = runq.next;
+    //   list_del(iterator);
+    //   release(&q_lock);
+
+    // }
 
     // for(p = proc; p < &proc[NPROC]; p++) {
     //   acquire(&p->lock);
@@ -735,7 +741,7 @@ procdump(void)
 void
 print_list()
 {
-  struct list_head *iterator = &runq.next;
+  struct list_head *iterator = runq.next;
 	struct proc *p;
 	while(iterator != &runq) {
 		// 7.1 Extract the data from the list head
@@ -748,6 +754,4 @@ print_list()
 		iterator = iterator->next;
 	}
   printf("\n");
-
-
 }
