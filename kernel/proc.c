@@ -45,6 +45,12 @@ proc_mapstacks(pagetable_t kpgtbl) {
   }
 }
 
+static inline void
+__wfi(void)
+{
+	asm volatile("wfi");
+}
+
 // initialize the proc table at boot time.
 void
 procinit(void)
@@ -498,19 +504,8 @@ scheduler(void)
       release(&p->lock);
     }else{
       release(&q_lock);
+      __wfi();
     }
-
-    // while(iterator != &runq) {
-    //   // p = (struct proc *)iterator;
-      
-    //   //wrapper around the list and use that to call add
-
-    //   acquire(&q_lock);
-    //   iterator = runq.next;
-    //   list_del(iterator);
-    //   release(&q_lock);
-
-    // }
 
     // for(p = proc; p < &proc[NPROC]; p++) {
     //   acquire(&p->lock);
